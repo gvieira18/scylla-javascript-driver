@@ -9,7 +9,7 @@ concurrency:
 
 jobs:
   build_linux:
-    name: Build linux
+    name: Build linux ${{ matrix.settings.target }}
     uses: ./.github/workflows/build_linux.yml
     with:
       node_version: ${{ matrix.node-version }}

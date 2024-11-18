@@ -20,7 +20,7 @@ on:
 
 jobs:
   build:
-    name: Build
+    name: Build ${{ inputs.target }}
     runs-on: ${{ inputs.host }}
     steps:
       - name: Checkout code
