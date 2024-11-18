@@ -1,0 +1,84 @@
+name: Build on linux
+
+on:
+  workflow_dispatch:
+
+  workflow_call:
+    inputs:
+      node_version:
+        required: true
+        type: string
+      target:
+        required: true
+        type: string
+      build_command:
+        required: true
+        type: string
+      host:
+        required: true
+        type: string
+
+jobs:
+  build:
+    name: Build
+    runs-on: ${{ inputs.host }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up Pnpm
+        uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2 # v4.0.0
+        with:
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
+        with:
+          node-version: ${{ inputs.node_version }}
+          cache: "pnpm"
+
+      - name: Setup up Rust
+        uses: actions-rust-lang/setup-rust-toolchain@11df97af8e8102fd60b60a77dfbf58d40cd843b8 # v1.10.1
+        with:
+          toolchain: stable
+          target: ${{ inputs.target }}
+          cache-key: ${{ inputs.target }}-cargo-${{ inputs.host }}
+          cache-directories: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            ~/.napi-rs
+            .cargo-cache
+            target/
+
+      - name: Install Zig
+        if: ${{ contains(inputs.target, 'musl') }}
+        uses: mlugg/setup-zig@a67e68dc5c8281d9608136d3d7ca1b282213e4ac # v1.2.1
+        with:
+          version: 0.13.0
+
+      - name: Install cargo-zigbuild
+        if: ${{ contains(inputs.target, 'musl') }}
+        uses: taiki-e/install-action@c6dc131d2c4291552cafb840290190a53b2cd937 #v2.44.67
+        with:
+          tool: cargo-zigbuild
+
+      - name: Install musl-tools
+        if: ${{ contains(inputs.target, 'musl') }}
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: ${{ inputs.build_command }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: bindings-${{ inputs.target }}
+          if-no-files-found: error
+          path: "*.node"
