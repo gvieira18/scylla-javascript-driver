@@ -2,27 +2,64 @@ name: Build on linux
 
 on:
   workflow_dispatch:
+    inputs:
+      target:
+        description: "Target platform"
+        required: true
+        type: choice
+        options:
+          - "x86_64-unknown-linux-gnu"
+          - "x86_64-unknown-linux-musl"
+          - "aarch64-unknown-linux-gnu"
+          - "aarch64-unknown-linux-musl"
+          - "armv7-unknown-linux-gnueabihf"
+          - "aarch64-linux-android"
+          - "armv7-linux-androideabi"
+        default: "x86_64-unknown-linux-gnu"
 
   workflow_call:
     inputs:
-      node_version:
-        required: true
-        type: string
       target:
-        required: true
-        type: string
-      build_command:
-        required: true
-        type: string
-      host:
         required: true
         type: string
 
 jobs:
   build:
-    name: Build ${{ inputs.target }}
-    runs-on: ${{ inputs.host }}
+    name: Build
+    runs-on: ubuntu-latest
     steps:
+      - name: Set build command based on target
+        id: build
+        env:
+          TARGET: ${{ inputs.target }}
+        run: |
+          case "$TARGET" in
+            x86_64-unknown-linux-gnu)
+              echo "command=pnpm build --target x86_64-unknown-linux-gnu --use-napi-cross" >> "$GITHUB_OUTPUT"
+              ;;
+            x86_64-unknown-linux-musl)
+              echo "command=pnpm build --target x86_64-unknown-linux-musl -x" >> "$GITHUB_OUTPUT"
+              ;;
+            aarch64-unknown-linux-gnu)
+              echo "command=pnpm build --target aarch64-unknown-linux-gnu --use-napi-cross" >> "$GITHUB_OUTPUT"
+              ;;
+            aarch64-unknown-linux-musl)
+              echo "command=pnpm build --target aarch64-unknown-linux-musl -x" >> "$GITHUB_OUTPUT"
+              ;;
+            armv7-unknown-linux-gnueabihf)
+              echo "command=pnpm build --target armv7-unknown-linux-gnueabihf --use-napi-cross" >> "$GITHUB_OUTPUT"
+              ;;
+            aarch64-linux-android)
+              echo "command=pnpm build --target aarch64-linux-android" >> "$GITHUB_OUTPUT"
+              ;;
+            armv7-linux-androideabi)
+              echo "command=pnpm build --target armv7-linux-androideabi" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "Invalid target" && exit 1
+              ;;
+          esac
+
       - name: Checkout code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
@@ -34,7 +71,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
         with:
-          node-version: ${{ inputs.node_version }}
+          node-version: 20
           cache: "pnpm"
 
       - name: Setup up Rust
@@ -42,7 +79,7 @@ jobs:
         with:
           toolchain: stable
           target: ${{ inputs.target }}
-          cache-key: ${{ inputs.target }}-cargo-${{ inputs.host }}
+          cache-key: ${{ inputs.target }}-cargo-ubuntu-latest
           cache-directories: |
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
@@ -74,7 +111,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build
-        run: ${{ inputs.build_command }}
+        run: ${{ steps.build.outputs.command }}
 
       - name: Upload artifacts
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
